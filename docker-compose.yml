@@ -1,0 +1,341 @@
+version: "3.9"
+
+# ════════════════════════════════════════════════════════════════
+#  Data Engineering Portfolio — Local Development Stack
+#  Services: Kafka · Zookeeper · PostgreSQL · Airflow · Jupyter
+#  Author  : Ahmad Zulham Hamdan
+# ════════════════════════════════════════════════════════════════
+#
+#  Quick start:
+#    docker compose up -d
+#    docker compose logs -f airflow-webserver
+#
+#  URLs after startup:
+#    Airflow   → http://localhost:8080   (admin / admin)
+#    Kafka UI  → http://localhost:9090
+#    Jupyter   → http://localhost:8888   (token: datatengineer)
+#    PgAdmin   → http://localhost:5050   (admin@admin.com / admin)
+# ════════════════════════════════════════════════════════════════
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.8.1-python3.10
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow/airflow
+    AIRFLOW__CORE__FERNET_KEY: "46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLt0nq3UvI="
+    AIRFLOW__WEBSERVER__SECRET_KEY: "portfolio-secret-key-change-in-prod"
+    # ─── Pipeline connections ───────────────────────────────────
+    AIRFLOW_CONN_POSTGRES_IOT_DB: "postgresql://postgres:portfolio123@postgres-pipeline:5432/iot_pipeline_db"
+    AIRFLOW_CONN_POSTGRES_BATCH_DB: "postgresql://postgres:portfolio123@postgres-pipeline:5432/batch_pipeline_db"
+    # ─── Pipeline variables ─────────────────────────────────────
+    AIRFLOW_VAR_KAFKA_BOOTSTRAP: "kafka:29092"
+    AIRFLOW_VAR_GCP_PROJECT_ID: "your-gcp-project-id"
+    AIRFLOW_VAR_BQ_DATASET: "iot_weather_streaming"
+    AIRFLOW_VAR_BQ_TABLE: "sensor_readings"
+    AIRFLOW_VAR_S3_BUCKET: "your-s3-bucket-name"
+    AIRFLOW_VAR_REDSHIFT_HOST: "your-cluster.redshift.amazonaws.com"
+    AIRFLOW_VAR_GITHUB_TOKEN: ""
+    # ─── Google credentials (mount service account JSON) ────────
+    GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/secrets/gcp-service-account.json
+    # ─── AWS credentials ────────────────────────────────────────
+    AWS_DEFAULT_REGION: "ap-southeast-1"
+    AWS_ACCESS_KEY_ID: "your-aws-key"
+    AWS_SECRET_ACCESS_KEY: "your-aws-secret"
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./secrets:/opt/airflow/secrets
+    - ./notebooks:/opt/airflow/notebooks
+  depends_on:
+    postgres-airflow:
+      condition: service_healthy
+
+
+services:
+
+  # ──────────────────────────────────────────────────────────────
+  # 1. ZOOKEEPER (Kafka dependency)
+  # ──────────────────────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    healthcheck:
+      test: echo ruok | nc localhost 2181 | grep imok
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 2. KAFKA BROKER
+  # ──────────────────────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"       # external access (host → Kafka)
+      - "9101:9101"       # JMX metrics
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Listeners: internal (Docker) + external (host machine)
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_NUM_PARTITIONS: 5
+      KAFKA_LOG_RETENTION_HOURS: 168        # 7 days
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824   # 1 GB
+      KAFKA_LOG4J_LOGGERS: "kafka=WARN,kafka.controller=WARN"
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: kafka-topics --bootstrap-server localhost:9092 --list
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 3. KAFKA UI (Provectus)
+  # ──────────────────────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "9090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 4. KAFKA TOPIC INITIALIZER
+  # ──────────────────────────────────────────────────────────────
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      echo 'Creating Kafka topics...'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic iot-weather-sensors --partitions 5 --replication-factor 1 \
+        --config retention.ms=604800000
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic batch-github-repos --partitions 3 --replication-factor 1 \
+        --config retention.ms=86400000
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic batch-weather-history --partitions 3 --replication-factor 1 \
+        --config retention.ms=86400000
+      echo 'Topics created:'
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 5. POSTGRESQL — Pipeline Operational DB
+  # ──────────────────────────────────────────────────────────────
+  postgres-pipeline:
+    image: postgres:15-alpine
+    container_name: postgres-pipeline
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: portfolio123
+      POSTGRES_DB: iot_pipeline_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_pipeline_data:/var/lib/postgresql/data
+      - ./sql/init_pipeline_db.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 6. POSTGRESQL — Airflow Metadata DB
+  # ──────────────────────────────────────────────────────────────
+  postgres-airflow:
+    image: postgres:15-alpine
+    container_name: postgres-airflow
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U airflow
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 7. PGADMIN — PostgreSQL GUI
+  # ──────────────────────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: pgadmin
+    restart: unless-stopped
+    depends_on:
+      postgres-pipeline:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 8. AIRFLOW — DB INIT
+  # ──────────────────────────────────────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate
+        airflow users create \
+          --username admin \
+          --firstname Ahmad \
+          --lastname Zulham \
+          --role Admin \
+          --email zulham.va@gmail.com \
+          --password admin
+        echo "Airflow initialized ✅"
+    restart: on-failure
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 9. AIRFLOW — WEBSERVER
+  # ──────────────────────────────────────────────────────────────
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    restart: unless-stopped
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres-airflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 10. AIRFLOW — SCHEDULER
+  # ──────────────────────────────────────────────────────────────
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    restart: unless-stopped
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres-airflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "airflow", "jobs", "check", "--job-type", "SchedulerJob", "--hostname", "$${HOSTNAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - data_pipeline
+
+  # ──────────────────────────────────────────────────────────────
+  # 11. JUPYTER LAB
+  # ──────────────────────────────────────────────────────────────
+  jupyter:
+    image: jupyter/pyspark-notebook:spark-3.5.0
+    container_name: jupyter
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      JUPYTER_ENABLE_LAB: "yes"
+      JUPYTER_TOKEN: "datatengineer"
+      SPARK_OPTS: "--driver-memory 2g --executor-memory 2g"
+    volumes:
+      - ./notebooks:/home/jovyan/work/notebooks
+      - ./dags:/home/jovyan/work/dags
+    command: >
+      start-notebook.sh
+      --NotebookApp.token='datatengineer'
+      --NotebookApp.password=''
+    networks:
+      - data_pipeline
+
+# ══════════════════════════════════════════════════════════════════
+# VOLUMES
+# ══════════════════════════════════════════════════════════════════
+volumes:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
+  postgres_pipeline_data:
+  postgres_airflow_data:
+
+# ══════════════════════════════════════════════════════════════════
+# NETWORKS
+# ══════════════════════════════════════════════════════════════════
+networks:
+  data_pipeline:
+    driver: bridge
