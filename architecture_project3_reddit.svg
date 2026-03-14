@@ -1,0 +1,63 @@
+<svg width="100%" viewBox="0 0 680 420" xmlns="http://www.w3.org/2000/svg" style="font-family:sans-serif;background:#fafafa">
+<rect width="680" height="420" fill="#fafafa" rx="12"/>
+<text font-size="13" font-weight="600" x="340" y="28" text-anchor="middle" fill="#1a1a1a">Project 3 — Real-Time Reddit Sentiment Streaming Pipeline</text>
+<text font-size="11" fill="#888" x="28" y="90" text-anchor="middle">Source</text>
+<text font-size="11" fill="#888" x="28" y="182" text-anchor="middle">Ingest</text>
+<text font-size="11" fill="#888" x="28" y="268" text-anchor="middle">Process</text>
+<text font-size="11" fill="#888" x="28" y="345" text-anchor="middle">Store</text>
+<line x1="55" y1="132" x2="645" y2="132" stroke="#e0e0e0" stroke-width="0.5" stroke-dasharray="4 3"/>
+<line x1="55" y1="218" x2="645" y2="218" stroke="#e0e0e0" stroke-width="0.5" stroke-dasharray="4 3"/>
+<line x1="55" y1="298" x2="645" y2="298" stroke="#e0e0e0" stroke-width="0.5" stroke-dasharray="4 3"/>
+<!-- Source boxes -->
+<rect x="62" y="58" width="160" height="52" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="142" y="79" text-anchor="middle" fill="#712B13">Reddit PRAW API</text>
+<text font-size="11" x="142" y="97" text-anchor="middle" fill="#993C1D">free · no API key</text>
+<rect x="244" y="62" width="74" height="36" rx="6" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text font-size="11" x="281" y="83" text-anchor="middle" fill="#712B13">r/technology</text>
+<rect x="326" y="62" width="74" height="36" rx="6" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text font-size="11" x="363" y="83" text-anchor="middle" fill="#712B13">r/datascience</text>
+<rect x="408" y="62" width="74" height="36" rx="6" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text font-size="11" x="445" y="83" text-anchor="middle" fill="#712B13">r/MachineLrn</text>
+<rect x="490" y="62" width="74" height="36" rx="6" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text font-size="11" x="527" y="83" text-anchor="middle" fill="#712B13">r/Python</text>
+<text font-size="11" fill="#888" x="595" y="78">5 subreddits</text>
+<text font-size="11" fill="#888" x="595" y="94">~200–500/hr</text>
+<!-- Source arrows -->
+<line x1="281" y1="98" x2="270" y2="148" stroke="#993C1D" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="363" y1="98" x2="340" y2="148" stroke="#993C1D" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="445" y1="98" x2="410" y2="148" stroke="#993C1D" stroke-width="1" marker-end="url(#arrow)"/>
+<line x1="527" y1="98" x2="480" y2="148" stroke="#993C1D" stroke-width="1" marker-end="url(#arrow)"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<!-- Kafka -->
+<rect x="62" y="148" width="520" height="48" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="322" y="168" text-anchor="middle" fill="#3C3489">Apache Kafka</text>
+<text font-size="11" x="322" y="186" text-anchor="middle" fill="#534AB7">topic: reddit-posts-stream  |  5 partitions  |  GZIP  |  30-day retention</text>
+<!-- Kafka to Spark -->
+<line x1="322" y1="196" x2="322" y2="228" stroke="#534AB7" stroke-width="1.5" marker-end="url(#arrow)"/>
+<!-- Spark -->
+<rect x="62" y="228" width="520" height="50" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="322" y="248" text-anchor="middle" fill="#0C447C">PySpark Structured Streaming</text>
+<text font-size="11" x="322" y="266" text-anchor="middle" fill="#185FA5">parse schema  →  VADER + TextBlob ensemble NLP  →  foreachBatch upsert (30s trigger)</text>
+<!-- Spark to Mongo + BQ -->
+<path d="M200 278 L200 300 L162 300 L162 318" fill="none" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M490 278 L490 300 L520 300 L520 318" fill="none" stroke="#185FA5" stroke-width="1.5" marker-end="url(#arrow)"/>
+<!-- Airflow -->
+<rect x="558" y="228" width="84" height="50" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="600" y="248" text-anchor="middle" fill="#633806">Airflow</text>
+<text font-size="11" x="600" y="266" text-anchor="middle" fill="#854F0B">hourly sync</text>
+<!-- Stores -->
+<rect x="62" y="318" width="200" height="60" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="162" y="338" text-anchor="middle" fill="#712B13">MongoDB (NoSQL)</text>
+<text font-size="11" x="162" y="354" text-anchor="middle" fill="#993C1D">raw_posts collection</text>
+<text font-size="11" x="162" y="369" text-anchor="middle" fill="#993C1D">sentiment_results</text>
+<rect x="420" y="318" width="162" height="60" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="501" y="338" text-anchor="middle" fill="#0C447C">Google BigQuery</text>
+<text font-size="11" x="501" y="354" text-anchor="middle" fill="#185FA5">post_sentiment table</text>
+<text font-size="11" x="501" y="369" text-anchor="middle" fill="#185FA5">partitioned by date</text>
+<!-- Sync arrow -->
+<line x1="262" y1="350" x2="370" y2="350" stroke="#888" stroke-width="1" stroke-dasharray="4 2" marker-end="url(#arrow)"/>
+<text font-size="10" fill="#888" x="316" y="343" text-anchor="middle">hourly Airflow</text>
+<!-- SLA badges -->
+<rect x="274" y="385" width="130" height="22" rx="4" fill="#EAF3DE" stroke="#3B6D11" stroke-width="0.5"/>
+<text font-size="10" x="339" y="400" text-anchor="middle" fill="#27500A">latency &lt; 60s end-to-end</text>
+</svg>

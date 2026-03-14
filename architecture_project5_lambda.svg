@@ -1,0 +1,65 @@
+<svg width="100%" viewBox="0 0 680 500" xmlns="http://www.w3.org/2000/svg" style="font-family:sans-serif;background:#fafafa">
+<rect width="680" height="500" fill="#fafafa" rx="12"/>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+<text font-size="13" font-weight="600" x="340" y="28" text-anchor="middle" fill="#1a1a1a">Project 5 — Lambda Architecture: CoinGecko Crypto Data Lake</text>
+<!-- Source -->
+<rect x="230" y="44" width="220" height="48" rx="8" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="340" y="64" text-anchor="middle" fill="#633806">CoinGecko API (free · no key)</text>
+<text font-size="11" x="340" y="82" text-anchor="middle" fill="#854F0B">top 50 coins · markets + OHLCV endpoints</text>
+<!-- Speed/Batch split arrows -->
+<path d="M290 92 L200 130" fill="none" stroke="#993C1D" stroke-width="1.5" marker-end="url(#arrow)"/>
+<path d="M390 92 L500 130" fill="none" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrow)"/>
+<!-- Speed label -->
+<text font-size="11" font-weight="600" x="145" y="120" text-anchor="middle" fill="#993C1D">⚡ SPEED LAYER</text>
+<!-- Batch label -->
+<text font-size="11" font-weight="600" x="535" y="120" text-anchor="middle" fill="#0F6E56">📦 BATCH LAYER</text>
+<!-- Kafka speed -->
+<rect x="62" y="140" width="240" height="44" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="182" y="158" text-anchor="middle" fill="#3C3489">Kafka: prices-realtime</text>
+<text font-size="11" x="182" y="174" text-anchor="middle" fill="#534AB7">every 60s · 50 coins · GZIP</text>
+<!-- Kafka batch -->
+<rect x="378" y="140" width="240" height="44" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="498" y="158" text-anchor="middle" fill="#3C3489">Kafka: ohlcv-batch</text>
+<text font-size="11" x="498" y="174" text-anchor="middle" fill="#534AB7">daily · 20 coins · 90d candles</text>
+<!-- Arrows to Spark -->
+<line x1="182" y1="184" x2="182" y2="214" stroke="#534AB7" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="498" y1="184" x2="498" y2="214" stroke="#534AB7" stroke-width="1.5" marker-end="url(#arrow)"/>
+<!-- Spark speed -->
+<rect x="62" y="214" width="240" height="50" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="182" y="234" text-anchor="middle" fill="#712B13">PySpark Streaming</text>
+<text font-size="11" x="182" y="252" text-anchor="middle" fill="#993C1D">volatility UDF · enrichment · 60s trigger</text>
+<!-- Spark batch -->
+<rect x="378" y="214" width="240" height="50" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="498" y="234" text-anchor="middle" fill="#085041">PySpark Batch</text>
+<text font-size="11" x="498" y="252" text-anchor="middle" fill="#0F6E56">7d/30d MA · golden cross · daily return %</text>
+<!-- Airflow 2 DAGs badge -->
+<rect x="290" y="218" width="100" height="42" rx="6" fill="#FAEEDA" stroke="#854F0B" stroke-width="0.5"/>
+<text font-size="10" font-weight="600" x="340" y="234" text-anchor="middle" fill="#633806">Airflow</text>
+<text font-size="10" x="340" y="248" text-anchor="middle" fill="#854F0B">speed: */5min</text>
+<text font-size="10" x="340" y="260" text-anchor="middle" fill="#854F0B">batch: 04:00 WIB</text>
+<!-- Arrows to stores -->
+<line x1="182" y1="264" x2="182" y2="306" stroke="#993C1D" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="498" y1="264" x2="498" y2="306" stroke="#0F6E56" stroke-width="1.5" marker-end="url(#arrow)"/>
+<!-- Cassandra -->
+<rect x="62" y="306" width="240" height="80" rx="8" fill="#FAECE7" stroke="#993C1D" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="182" y="326" text-anchor="middle" fill="#712B13">Apache Cassandra</text>
+<text font-size="11" x="182" y="344" text-anchor="middle" fill="#993C1D">price_time_series (TTL 30d)</text>
+<text font-size="11" x="182" y="360" text-anchor="middle" fill="#993C1D">latest_price_view → &lt;5ms reads</text>
+<text font-size="11" x="182" y="376" text-anchor="middle" fill="#993C1D">PRIMARY KEY (coin_id, event_time)</text>
+<!-- Snowflake -->
+<rect x="378" y="306" width="240" height="80" rx="8" fill="#E1F5EE" stroke="#0F6E56" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="498" y="326" text-anchor="middle" fill="#085041">Snowflake</text>
+<text font-size="11" x="498" y="344" text-anchor="middle" fill="#0F6E56">CRYPTO_DW.ANALYTICS</text>
+<text font-size="11" x="498" y="360" text-anchor="middle" fill="#0F6E56">CRYPTO_OHLCV_HISTORY</text>
+<text font-size="11" x="498" y="376" text-anchor="middle" fill="#0F6E56">clustered by coin_id + candle_date</text>
+<!-- Serving layer box -->
+<rect x="62" y="406" width="556" height="68" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+<text font-size="12" font-weight="600" x="340" y="426" text-anchor="middle" fill="#0C447C">Serving Layer — Cassandra unified query interface</text>
+<text font-size="11" x="208" y="446" text-anchor="middle" fill="#185FA5">"What is BTC price NOW?"</text>
+<text font-size="11" x="208" y="460" text-anchor="middle" fill="#185FA5">→ Cassandra &lt;5ms</text>
+<text font-size="11" x="452" y="446" text-anchor="middle" fill="#185FA5">"30d MA + golden cross signal?"</text>
+<text font-size="11" x="452" y="460" text-anchor="middle" fill="#185FA5">→ Snowflake (seconds)</text>
+<!-- Arrows to serving -->
+<path d="M182 386 L182 396 L340 396 L340 406" fill="none" stroke="#185FA5" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arrow)"/>
+<path d="M498 386 L498 396 L340 396" fill="none" stroke="#185FA5" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#arrow)"/>
+</svg>
